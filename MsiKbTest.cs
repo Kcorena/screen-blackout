@@ -15,7 +15,12 @@ public static class MsiKbTest
         if (cmd == "off")
         {
             ok = MsiKb.MsiKeyboard.TryTurnOff();
-            Console.WriteLine("turn OFF -> " + ok);
+            Console.WriteLine("turn OFF (disable) -> " + ok);
+        }
+        else if (cmd == "off2")
+        {
+            ok = MsiKb.MsiKeyboard.TryTurnOffBlack();
+            Console.WriteLine("turn OFF (steady black) -> " + ok);
         }
         else if (cmd == "on" || cmd == "flash")
         {
