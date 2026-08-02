@@ -101,71 +101,43 @@ public static class IconGen
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.Transparent);
 
-            float m = Math.Max(1f, s * 0.06f);
-            float R1 = s / 2f - m;                       // big disc radius
-            var C1 = new PointF(s / 2f, s / 2f);         // big disc center
-            float Rm = s * 0.34f;                        // amber moon radius
-            float R2 = s * 0.36f;                        // small "behind" circle radius
-            var C2 = new PointF(s * 0.66f, s * 0.32f);   // small circle center, up-right
+            // 1. black rounded-square background (full bleed)
+            using (var bg = RoundedRect(new RectangleF(0, 0, s, s), s * 0.23f))
+            using (var b = new SolidBrush(Color.FromArgb(255, 10, 10, 14)))
+                g.FillPath(b, bg);
 
-            var indigo = Color.FromArgb(255, 67, 56, 202);   // #4338CA
-            var amber = Color.FromArgb(255, 245, 158, 11);   // #F59E0B
+            // 2. power symbol: open ring + vertical bar, blue->purple gradient, thick stroke
+            float cx = s / 2f, cy = s / 2f;
+            float Ro = s * 0.30f;                       // outer ring radius
+            float t = Math.Max(1.25f, s * 0.085f);      // stroke thickness (thick)
+            float Ri = Ro - t;                          // inner ring radius
 
-            // 1. big disc
-            using (var b = new SolidBrush(indigo))
-                g.FillEllipse(b, new RectangleF(C1.X - R1, C1.Y - R1, R1 * 2, R1 * 2));
-
-            // 2. amber moon (full circle, centered on the disc)
-            using (var b = new SolidBrush(amber))
-                g.FillEllipse(b, new RectangleF(C1.X - Rm, C1.Y - Rm, Rm * 2, Rm * 2));
-
-            // 3. small indigo circle behind (up-right) -> cuts the amber into a crescent
-            using (var b = new SolidBrush(indigo))
-                g.FillEllipse(b, new RectangleF(C2.X - R2, C2.Y - R2, R2 * 2, R2 * 2));
-
-            // 4. transparent seam along the small circle's arc that lies inside the big disc,
-            //    so the two circles read as separate overlapping shapes
-            float dx = C2.X - C1.X, dy = C2.Y - C1.Y;
-            float d = (float)Math.Sqrt(dx * dx + dy * dy);
-            float a = (R1 * R1 - R2 * R2 + d * d) / (2 * d);
-            float hsq = R1 * R1 - a * a;
-            if (hsq > 0)
+            using (var gradient = new LinearGradientBrush(
+                new PointF(0, 0), new PointF(s, s),
+                Color.FromArgb(255, 59, 130, 246),      // blue #3B82F6
+                Color.FromArgb(255, 147, 51, 234)))     // purple #9333EA
             {
-                float h = (float)Math.Sqrt(hsq);
-                float ux = dx / d, uy = dy / d;
-                float px = C1.X + ux * a, py = C1.Y + uy * a;
-                float t1x = px - uy * h, t1y = py + ux * h;
-                float t2x = px + uy * h, t2y = py - ux * h;
-                float th1 = Deg(Atan2(t1y - C2.Y, t1x - C2.X));
-                float th2 = Deg(Atan2(t2y - C2.Y, t2x - C2.X));
-                float thA = Deg(Atan2(C1.Y - C2.Y, C1.X - C2.X));
-                float delta = (th2 - th1 + 360f) % 360f;   // arc th1 -> th2 (clockwise)
-                float rel = (thA - th1 + 360f) % 360f;     // direction toward C1
-                float start, sweep;
-                if (rel <= delta) { start = th1; sweep = delta; }
-                else { start = th2; sweep = 360f - delta; }
-
-                float seamW = Math.Max(1f, s * 0.035f);
-                using (var pen = new Pen(Color.FromArgb(0, 0, 0, 0), seamW))
+                // ring: C-shape open at the top (gap ~70 deg centred at 12 o'clock)
+                using (var ring = new GraphicsPath())
                 {
-                    g.CompositingMode = CompositingMode.SourceCopy;
-                    g.DrawArc(pen, new RectangleF(C2.X - R2, C2.Y - R2, R2 * 2, R2 * 2), start, sweep);
-                    g.CompositingMode = CompositingMode.SourceOver;
+                    ring.AddArc(cx - Ro, cy - Ro, Ro * 2, Ro * 2, 305f, 290f);   // outer arc
+                    ring.AddArc(cx - Ri, cy - Ri, Ri * 2, Ri * 2, 235f, -290f);  // inner arc (reverse)
+                    ring.CloseFigure();
+                    g.FillPath(gradient, ring);
                 }
+
+                // vertical bar with rounded caps, merging into the ring's top
+                float barTop = cy - Ro - t * 1.3f;
+                float barBottom = cy - Ro + t * 0.9f;
+                using (var pen = new Pen(gradient, t)
+                {
+                    StartCap = LineCap.Round,
+                    EndCap = LineCap.Round
+                })
+                    g.DrawLine(pen, cx, barTop, cx, barBottom);
             }
         }
         return bmp;
-    }
-
-    private static float Atan2(float y, float x)
-    {
-        return (float)Math.Atan2(y, x);
-    }
-
-    private static float Deg(float rad)
-    {
-        float d = rad * 180f / (float)Math.PI;
-        return (d % 360f + 360f) % 360f;
     }
 
     private static GraphicsPath RoundedRect(RectangleF r, float radius)
