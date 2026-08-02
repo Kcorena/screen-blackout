@@ -100,22 +100,72 @@ public static class IconGen
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.Transparent);
+
             float m = Math.Max(1f, s * 0.06f);
-            var disc = new RectangleF(m, m, s - 2 * m, s - 2 * m);
-            var indigo = Color.FromArgb(255, 67, 56, 202);    // #4338CA
-            var amber = Color.FromArgb(255, 245, 158, 11);    // #F59E0B
+            float R1 = s / 2f - m;                       // big disc radius
+            var C1 = new PointF(s / 2f, s / 2f);         // big disc center
+            float Rm = s * 0.34f;                        // amber moon radius
+            float R2 = s * 0.36f;                        // small "behind" circle radius
+            var C2 = new PointF(s * 0.66f, s * 0.32f);   // small circle center, up-right
+
+            var indigo = Color.FromArgb(255, 67, 56, 202);   // #4338CA
+            var amber = Color.FromArgb(255, 245, 158, 11);   // #F59E0B
+
+            // 1. big disc
             using (var b = new SolidBrush(indigo))
-                g.FillEllipse(b, disc);
-            // crescent: full amber circle, then cut with an indigo circle offset up-right
-            float cw = s * 0.62f;
-            var moon = new RectangleF((s - cw) / 2f, (s - cw) / 2f, cw, cw);
+                g.FillEllipse(b, new RectangleF(C1.X - R1, C1.Y - R1, R1 * 2, R1 * 2));
+
+            // 2. amber moon (full circle, centered on the disc)
             using (var b = new SolidBrush(amber))
-                g.FillEllipse(b, moon);
-            var cut = new RectangleF(moon.X + cw * 0.28f, moon.Y - cw * 0.22f, cw, cw);
+                g.FillEllipse(b, new RectangleF(C1.X - Rm, C1.Y - Rm, Rm * 2, Rm * 2));
+
+            // 3. small indigo circle behind (up-right) -> cuts the amber into a crescent
             using (var b = new SolidBrush(indigo))
-                g.FillEllipse(b, cut);
+                g.FillEllipse(b, new RectangleF(C2.X - R2, C2.Y - R2, R2 * 2, R2 * 2));
+
+            // 4. transparent seam along the small circle's arc that lies inside the big disc,
+            //    so the two circles read as separate overlapping shapes
+            float dx = C2.X - C1.X, dy = C2.Y - C1.Y;
+            float d = (float)Math.Sqrt(dx * dx + dy * dy);
+            float a = (R1 * R1 - R2 * R2 + d * d) / (2 * d);
+            float hsq = R1 * R1 - a * a;
+            if (hsq > 0)
+            {
+                float h = (float)Math.Sqrt(hsq);
+                float ux = dx / d, uy = dy / d;
+                float px = C1.X + ux * a, py = C1.Y + uy * a;
+                float t1x = px - uy * h, t1y = py + ux * h;
+                float t2x = px + uy * h, t2y = py - ux * h;
+                float th1 = Deg(Atan2(t1y - C2.Y, t1x - C2.X));
+                float th2 = Deg(Atan2(t2y - C2.Y, t2x - C2.X));
+                float thA = Deg(Atan2(C1.Y - C2.Y, C1.X - C2.X));
+                float delta = (th2 - th1 + 360f) % 360f;   // arc th1 -> th2 (clockwise)
+                float rel = (thA - th1 + 360f) % 360f;     // direction toward C1
+                float start, sweep;
+                if (rel <= delta) { start = th1; sweep = delta; }
+                else { start = th2; sweep = 360f - delta; }
+
+                float seamW = Math.Max(1f, s * 0.035f);
+                using (var pen = new Pen(Color.FromArgb(0, 0, 0, 0), seamW))
+                {
+                    g.CompositingMode = CompositingMode.SourceCopy;
+                    g.DrawArc(pen, new RectangleF(C2.X - R2, C2.Y - R2, R2 * 2, R2 * 2), start, sweep);
+                    g.CompositingMode = CompositingMode.SourceOver;
+                }
+            }
         }
         return bmp;
+    }
+
+    private static float Atan2(float y, float x)
+    {
+        return (float)Math.Atan2(y, x);
+    }
+
+    private static float Deg(float rad)
+    {
+        float d = rad * 180f / (float)Math.PI;
+        return (d % 360f + 360f) % 360f;
     }
 
     private static GraphicsPath RoundedRect(RectangleF r, float radius)
