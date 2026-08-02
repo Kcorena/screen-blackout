@@ -6,7 +6,7 @@ using System.Drawing.Imaging;
 using System.IO;
 
 // Generates a multi-size ScreenBlackout.ico (16/24/32/48/64/128/256),
-// drawn with GDI+: a monitor outline with a black screen.
+// drawn with GDI+: an indigo disc with an amber crescent moon.
 public static class IconGen
 {
     public static int Main()
@@ -15,12 +15,37 @@ public static class IconGen
         {
             Generate(@"D:\ScreenBlackout\ScreenBlackout.ico");
             Console.WriteLine("icon generated OK");
+            SavePreview(@"C:\Users\Falli\.openclaw\workspace\tmp\icon_256.png", 256);
+            SavePreview(@"C:\Users\Falli\.openclaw\workspace\tmp\icon_16x6.png", 16, 6);
+            Console.WriteLine("previews OK");
             return 0;
         }
         catch (Exception ex)
         {
             Console.WriteLine("ERROR: " + ex.Message);
             return 1;
+        }
+    }
+
+    private static void SavePreview(string path, int size, int scale = 1)
+    {
+        using (var bmp = Draw(size))
+        {
+            if (scale > 1)
+            {
+                using (var big = new Bitmap(size * scale, size * scale, PixelFormat.Format32bppArgb))
+                using (var g = Graphics.FromImage(big))
+                {
+                    g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                    g.PixelOffsetMode = PixelOffsetMode.Half;
+                    g.DrawImage(bmp, 0, 0, size * scale, size * scale);
+                    big.Save(path, ImageFormat.Png);
+                }
+            }
+            else
+            {
+                bmp.Save(path, ImageFormat.Png);
+            }
         }
     }
 
@@ -75,28 +100,20 @@ public static class IconGen
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.Transparent);
-            float t = Math.Max(1.5f, s * 0.11f);          // border thickness
-            float m = Math.Max(1f, s * 0.05f);            // margin
-            float w = s - 2 * m;
-            float h = w * 0.72f;                          // screen aspect
-            var screenRect = new RectangleF(m, m, w, h);
-            var border = Color.FromArgb(255, 241, 245, 249);
-            using (var pen = new Pen(border, t) { LineJoin = LineJoin.Round })
-            {
-                using (var path = RoundedRect(screenRect, s * 0.09f))
-                    g.DrawPath(pen, path);
-            }
-            var inner = RectangleF.Inflate(screenRect, -t, -t);
-            using (var brush = new SolidBrush(Color.FromArgb(255, 15, 23, 42)))
-                g.FillRectangle(brush, inner);
-            float sw = s * 0.22f;
-            float st = Math.Max(1f, s * 0.07f);
-            using (var pen = new Pen(border, st))
-            {
-                float baseY = m + h;
-                g.DrawLine(pen, s / 2f - sw / 2, baseY, s / 2f + sw / 2, baseY);
-                g.DrawLine(pen, s / 2f, baseY, s / 2f, baseY + s * 0.08f);
-            }
+            float m = Math.Max(1f, s * 0.06f);
+            var disc = new RectangleF(m, m, s - 2 * m, s - 2 * m);
+            var indigo = Color.FromArgb(255, 67, 56, 202);    // #4338CA
+            var amber = Color.FromArgb(255, 245, 158, 11);    // #F59E0B
+            using (var b = new SolidBrush(indigo))
+                g.FillEllipse(b, disc);
+            // crescent: full amber circle, then cut with an indigo circle offset up-right
+            float cw = s * 0.62f;
+            var moon = new RectangleF((s - cw) / 2f, (s - cw) / 2f, cw, cw);
+            using (var b = new SolidBrush(amber))
+                g.FillEllipse(b, moon);
+            var cut = new RectangleF(moon.X + cw * 0.28f, moon.Y - cw * 0.22f, cw, cw);
+            using (var b = new SolidBrush(indigo))
+                g.FillEllipse(b, cut);
         }
         return bmp;
     }
