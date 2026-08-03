@@ -6,7 +6,7 @@ if not exist "%CSC%" (
   echo Could not find csc.exe. .NET Framework 4.x is required.
   exit /b 1
 )
-"%CSC%" /nologo /codepage:65001 /win32manifest:app.manifest /win32icon:ScreenBlackout.ico /target:winexe /out:ScreenBlackout.exe ScreenBlackout.cs MsiKb.cs
+"%CSC%" /nologo /codepage:65001 /win32icon:ScreenBlackout.ico /target:winexe /out:ScreenBlackout.exe ScreenBlackout.cs MsiKb.cs
 if errorlevel 1 (
   echo Build failed.
   exit /b 1

@@ -139,22 +139,6 @@ namespace MsiKb
             return b;
         }
 
-        // Backup approach: "steady black" effect (brightness 0), in case the MCU
-        // ignores the Disable animation type on single-color keyboards.
-        public static byte[] SteadyBlackReport()
-        {
-            byte[] b = new byte[64];
-            b[0] = 2;      // report ID
-            b[1] = 2;      // packet ID: configure effect
-            b[2] = 1;      // animation: Steady
-            b[3] = 0x58; b[4] = 0x02;   // speed 600 (LE)
-            b[5] = 0; b[6] = 0; b[7] = 15; b[8] = 1; b[9] = 0;
-            // two black keyframes {time u16 LE, r, g, b}
-            b[10] = 0; b[11] = 0; b[12] = 0; b[13] = 0; b[14] = 0;
-            b[15] = 0x64; b[16] = 0; b[17] = 0; b[18] = 0; b[19] = 0;
-            return b;
-        }
-
         public static byte[] LoadFromFlashReport()
         {
             byte[] b = new byte[64];
@@ -170,18 +154,6 @@ namespace MsiKb
             foreach (var p in paths)
             {
                 if (Send(p, ZoneSelectAllReport()) && Send(p, DisableEffectReport()))
-                    return true;
-            }
-            return false;
-        }
-
-        // Backup: steady-black effect (in case Disable is ignored).
-        public static bool TryTurnOffBlack()
-        {
-            var paths = FindDevicePaths("vid_1462&pid_1601");
-            foreach (var p in paths)
-            {
-                if (Send(p, ZoneSelectAllReport()) && Send(p, SteadyBlackReport()))
                     return true;
             }
             return false;

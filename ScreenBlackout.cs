@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -169,16 +168,6 @@ namespace ScreenBlackout
 
     internal sealed class BlackoutForm : Form
     {
-        private readonly System.Windows.Forms.Timer _topTimer;
-
-        [DllImport("user32.dll")]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-        private const uint SWP_NOSIZE = 0x0001;
-        private const uint SWP_NOMOVE = 0x0002;
-        private const uint SWP_NOACTIVATE = 0x0010;
-
         public BlackoutForm()
         {
             FormBorderStyle = FormBorderStyle.None;
@@ -187,35 +176,22 @@ namespace ScreenBlackout
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
 
-            // Cover every monitor (including left/negative-coordinate ones),
-            // with a small overscan so no 1px desktop line shows at the edges.
             Rectangle total = Screen.PrimaryScreen.Bounds;
             foreach (var s in Screen.AllScreens)
                 total = Rectangle.Union(total, s.Bounds);
-            total.Inflate(2, 2);
             Bounds = total;
-
-            _topTimer = new System.Windows.Forms.Timer { Interval = 700 };
-            _topTimer.Tick += (s, e) =>
-            {
-                // Re-assert topmost so newly opened windows can't cover the black screen.
-                SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            };
 
             KeyDown += OnKeyDown;
             MouseClick += (s, e) => Restore();
             Shown += (s, e) =>
             {
                 Cursor.Hide();
-                _topTimer.Start();
-                Try(() => MsiKb.MsiKeyboard.TryTurnOff());       // keyboard backlight off (Disable)
-                Try(() => MsiKb.MsiKeyboard.TryTurnOffBlack());  // backup: steady black
+                Try(() => MsiKb.MsiKeyboard.TryTurnOff());   // keyboard backlight off
             };
             FormClosed += (s, e) =>
             {
-                _topTimer.Stop();
                 Cursor.Show();
-                Try(() => MsiKb.MsiKeyboard.TryTurnOn());        // keyboard backlight restore
+                Try(() => MsiKb.MsiKeyboard.TryTurnOn());    // keyboard backlight restore
             };
         }
 
@@ -223,7 +199,6 @@ namespace ScreenBlackout
         {
             Cursor.Show();
             Try(() => MsiKb.MsiKeyboard.TryTurnOn());
-            _topTimer.Stop();
             Hide();
         }
 
