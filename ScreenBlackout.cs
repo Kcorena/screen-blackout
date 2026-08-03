@@ -2,16 +2,13 @@ using System;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
-using Microsoft.Win32;
 
 namespace ScreenBlackout
 {
     internal static class Program
     {
-        internal const string MutexName = @"Local\ScreenBlackoutToggle_v2";
-        internal const string ToggleEventName = @"Local\ScreenBlackoutToggleEvent_v2";
-        private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private const string RunValueName = "ScreenBlackout";
+        private const string MutexName = @"Local\ScreenBlackoutToggle_v1";
+        private const string CloseEventName = @"Local\ScreenBlackoutClose_v1";
 
         [STAThread]
         private static void Main()
@@ -21,148 +18,38 @@ namespace ScreenBlackout
             {
                 if (!createdNew)
                 {
-                    // Already running in the tray -> toggle blackout.
+                    // Second click: tell the running instance to close gracefully,
+                    // so the screen AND the keyboard backlight both get restored.
                     try
                     {
-                        using (var evt = EventWaitHandle.OpenExisting(ToggleEventName))
+                        using (var evt = EventWaitHandle.OpenExisting(CloseEventName))
                             evt.Set();
                     }
                     catch { }
                     return;
                 }
 
-                bool blackOnStart = true;
-                foreach (string a in Environment.GetCommandLineArgs())
-                {
-                    if (a.Equals("--autostart", StringComparison.OrdinalIgnoreCase))
-                    {
-                        blackOnStart = false;
-                        break;
-                    }
-                }
-
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                new TrayApp().Run(blackOnStart);
-            }
-        }
 
-        public static bool IsAutoStartEnabled()
-        {
-            using (var k = Registry.CurrentUser.OpenSubKey(RunKey))
-                return k != null && k.GetValue(RunValueName) != null;
-        }
+                var form = new BlackoutForm();
 
-        public static void SetAutoStart(bool enabled)
-        {
-            using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
-            {
-                if (k == null) return;
-                if (enabled)
-                    k.SetValue(RunValueName, "\"" + Application.ExecutablePath + "\" --autostart");
-                else
-                    k.DeleteValue(RunValueName, false);
-            }
-        }
-    }
-
-    internal sealed class TrayApp
-    {
-        private readonly Form _host;              // invisible owner window (message pump)
-        private readonly NotifyIcon _tray;
-        private readonly ToolStripMenuItem _autostartItem;
-        private readonly ToolStripMenuItem _toggleItem;
-        private BlackoutForm _black;
-        private EventWaitHandle _toggleEvent;
-
-        public TrayApp()
-        {
-            _host = new Form();
-            _host.ShowInTaskbar = false;
-            _host.Opacity = 0;
-            _host.FormBorderStyle = FormBorderStyle.None;
-            _host.StartPosition = FormStartPosition.Manual;
-            _host.Location = new Point(-32000, -32000);
-            _host.ShowInTaskbar = false;
-
-            Icon icon = null;
-            try { icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
-            if (icon == null) icon = SystemIcons.Application;
-
-            _tray = new NotifyIcon
-            {
-                Icon = icon,
-                Text = "ScreenBlackout — 单击黑屏/恢复",
-                Visible = true
-            };
-
-            _toggleItem = new ToolStripMenuItem("黑屏/恢复");
-            _toggleItem.Click += (s, e) => Toggle();
-
-            _autostartItem = new ToolStripMenuItem("开机自启动");
-            _autostartItem.Click += (s, e) =>
-            {
-                bool en = !_autostartItem.Checked;
-                _autostartItem.Checked = en;
-                Program.SetAutoStart(en);
-            };
-
-            var exitItem = new ToolStripMenuItem("退出");
-            exitItem.Click += (s, e) => Exit();
-
-            var menu = new ContextMenuStrip();
-            menu.Items.Add(_toggleItem);
-            menu.Items.Add(_autostartItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(exitItem);
-            _tray.ContextMenuStrip = menu;
-            _tray.MouseClick += (s, e) =>
-            {
-                if (e.Button == MouseButtons.Left) Toggle();
-            };
-        }
-
-        public void Run(bool blackOnStart)
-        {
-            _autostartItem.Checked = Program.IsAutoStartEnabled();
-            if (!Program.IsAutoStartEnabled()) Program.SetAutoStart(true);
-
-            _toggleEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ToggleEventName);
-            var watcher = new Thread(() =>
-            {
-                while (true)
+                // Create the close-signal handle up front, watch it in a background thread.
+                var closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, CloseEventName);
+                var watcher = new Thread(() =>
                 {
-                    try { _toggleEvent.WaitOne(); }
-                    catch { return; }
-                    try { _host.BeginInvoke(new Action(Toggle)); }
+                    try
+                    {
+                        closeEvent.WaitOne();
+                        try { form.BeginInvoke(new Action(form.Close)); } catch { }
+                    }
                     catch { }
-                }
-            });
-            watcher.IsBackground = true;
-            watcher.Start();
+                });
+                watcher.IsBackground = true;
+                watcher.Start();
 
-            if (blackOnStart) _host.BeginInvoke(new Action(Toggle));
-            Application.Run(_host);
-        }
-
-        private void Toggle()
-        {
-            if (_black != null && !_black.IsDisposed && _black.Visible)
-            {
-                _black.Restore();
+                Application.Run(form);
             }
-            else
-            {
-                if (_black == null || _black.IsDisposed) _black = new BlackoutForm();
-                _black.Show();
-            }
-        }
-
-        private void Exit()
-        {
-            if (_black != null && !_black.IsDisposed && _black.Visible) _black.Restore();
-            _tray.Visible = false;
-            Application.Exit();
         }
     }
 
@@ -176,13 +63,14 @@ namespace ScreenBlackout
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
 
+            // Cover every monitor (including left/negative-coordinate ones)
             Rectangle total = Screen.PrimaryScreen.Bounds;
             foreach (var s in Screen.AllScreens)
                 total = Rectangle.Union(total, s.Bounds);
             Bounds = total;
 
             KeyDown += OnKeyDown;
-            MouseClick += (s, e) => Restore();
+            MouseClick += (s, e) => Close();
             Shown += (s, e) =>
             {
                 Cursor.Hide();
@@ -195,13 +83,6 @@ namespace ScreenBlackout
             };
         }
 
-        public void Restore()
-        {
-            Cursor.Show();
-            Try(() => MsiKb.MsiKeyboard.TryTurnOn());
-            Hide();
-        }
-
         private static void Try(Func<bool> action)
         {
             try { action(); }
@@ -210,12 +91,12 @@ namespace ScreenBlackout
 
         private void OnKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Escape) Restore();
+            if (e.KeyCode == Keys.Escape) Close();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (keyData == Keys.Escape) { Restore(); return true; }
+            if (keyData == Keys.Escape) { Close(); return true; }
             return base.ProcessCmdKey(ref msg, keyData);
         }
     }
