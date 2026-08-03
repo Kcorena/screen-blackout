@@ -154,7 +154,7 @@ namespace ScreenBlackout
             else
             {
                 if (_black == null || _black.IsDisposed) _black = new BlackoutForm();
-                _black.Show();
+                _black.ShowBlackout();
             }
         }
 
@@ -168,6 +168,8 @@ namespace ScreenBlackout
 
     internal sealed class BlackoutForm : Form
     {
+        private const int WM_SETCURSOR = 0x0020;
+
         public BlackoutForm()
         {
             FormBorderStyle = FormBorderStyle.None;
@@ -187,22 +189,20 @@ namespace ScreenBlackout
 
             KeyDown += OnKeyDown;
             MouseClick += (s, e) => Restore();
-            Shown += (s, e) =>
-            {
-                Cursor.Hide();
-                Try(() => MsiKb.MsiKeyboard.TryTurnOff());   // keyboard backlight off
-            };
-            FormClosed += (s, e) =>
-            {
-                Cursor.Show();
-                Try(() => MsiKb.MsiKeyboard.TryTurnOn());    // keyboard backlight restore
-            };
+        }
+
+        // Called on every blackout (Show() does not re-fire Shown on repeat shows).
+        public void ShowBlackout()
+        {
+            Show();
+            Cursor.Hide();
+            Try(() => MsiKb.MsiKeyboard.TryTurnOff());   // keyboard backlight off
         }
 
         public void Restore()
         {
             Cursor.Show();
-            Try(() => MsiKb.MsiKeyboard.TryTurnOn());
+            Try(() => MsiKb.MsiKeyboard.TryTurnOn());    // keyboard backlight restore
             Hide();
         }
 
@@ -221,6 +221,18 @@ namespace ScreenBlackout
         {
             if (keyData == Keys.Escape) { Restore(); return true; }
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        // Keep the cursor hidden even when the mouse moves (WM_SETCURSOR would
+        // normally re-show it over this window).
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_SETCURSOR)
+            {
+                Cursor.Hide();
+                return;
+            }
+            base.WndProc(ref m);
         }
     }
 }
