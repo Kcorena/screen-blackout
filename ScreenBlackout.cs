@@ -67,6 +67,9 @@ namespace ScreenBlackout
             Rectangle total = Screen.PrimaryScreen.Bounds;
             foreach (var s in Screen.AllScreens)
                 total = Rectangle.Union(total, s.Bounds);
+            // Overscan: extend slightly past the screen edge so no 1px desktop
+            // line shows along the border (e.g. right edge white line).
+            total.Inflate(2, 2);
             Bounds = total;
 
             KeyDown += OnKeyDown;
