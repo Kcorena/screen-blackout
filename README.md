@@ -1,6 +1,12 @@
-# ScreenBlackout — 一键黑屏 + MSI 键盘背光联动
+<p align="center">
+  <img src="assets/logo.png" alt="ScreenBlackout" width="160">
+</p>
 
-超小的 Windows 托盘工具：单击托盘图标把屏幕变成纯黑（**不是**关屏/休眠，后台照常运行），再单击 / 按 Esc / 点鼠标恢复。在 MSI 游戏本上还会同时**关闭/恢复键盘背光**。开机自动启动，常驻系统托盘。
+<h1 align="center">ScreenBlackout — 一键黑屏 + MSI 键盘背光联动</h1>
+
+<p align="center"><em>超小的 Windows 托盘工具：单击托盘图标把屏幕变成纯黑（<b>不是</b>关屏/休眠，后台照常运行），再单击 / 按 Esc / 点鼠标恢复。在 MSI 游戏本上还会同时<b>关闭/恢复键盘背光</b>。开机自动启动，常驻系统托盘。</em></p>
+
+---
 
 ## 功能
 
